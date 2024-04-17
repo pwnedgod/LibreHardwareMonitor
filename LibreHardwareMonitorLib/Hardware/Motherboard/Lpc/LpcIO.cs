@@ -544,7 +544,7 @@ internal class LpcIO
             port.IT87Enter();
             chipId = port.ReadWord(CHIP_ID_REGISTER);
         }
-        
+
         Chip chip = chipId switch
         {
             0x8613 => Chip.IT8613E,
@@ -694,31 +694,36 @@ internal class LpcIO
             return null;
 
         // Read the host RAM address that maps to the Embedded Controller's RAM (two registers).
-        uint addressHi = 0;
-        uint addressHiVerify = 0;
-        uint address = port.ReadWord(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER);
+        uint h2ramAddress = port.ReadWord(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER);
         if (chip == Chip.IT87952E)
-            addressHi = port.ReadByte(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER_HIGH);
+            h2ramAddress |= (uint) port.ReadByte(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER_HIGH) << 16;
 
         Thread.Sleep(1);
-        uint addressVerify = port.ReadWord(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER);
+        uint h2ramAddressVerify = port.ReadWord(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER);
         if (chip == Chip.IT87952E)
-            addressHiVerify = port.ReadByte(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER_HIGH);
+            h2ramAddressVerify |= (uint)port.ReadByte(IT87_SMFI_HLPC_RAM_BASE_ADDRESS_REGISTER_HIGH) << 16;
 
-        if ((address != addressVerify) || (addressHi != addressHiVerify))
+        if (h2ramAddress != h2ramAddressVerify)
             return null;
 
-        // Address is xryy, Host Address is FFyyx000
-        // For IT87952E, Address is rzxryy, Host Address is (0xFC000000 | 0x0zyyx000)
-        uint hostAddress;
+        uint baseAddress;
         if (chip == Chip.IT87952E)
-            hostAddress = 0xFC000000;
+        {
+            uint b1 = h2ramAddress & 0xFF;
+            uint b2 = (h2ramAddress >> 8) & 0xFF;
+            uint b3 = (h2ramAddress >> 16) & 0xFF;
+
+            baseAddress = 0xFC000000 | ((b3 & 0xF0) << 12) | (b2 << 16) | ((b1 & 0x0F) << 24);
+        }
         else
-            hostAddress = 0xFF000000;
+        {
+            uint b1 = h2ramAddress & 0xFF;
+            uint b2 = (h2ramAddress >> 8) & 0xFF;
 
-        hostAddress |= (address & 0xF000) | ((address & 0xFF) << 16) | ((addressHi & 0xF) << 24);
+            baseAddress = 0xFF000000 | ((b2 & 0xF0) << 12) | (b1 << 16);
+        }
 
-        return new IsaBridgeGigabyteController(hostAddress, vendor);
+        return new IsaBridgeGigabyteController(baseAddress, vendor);
     }
 
     // ReSharper disable InconsistentNaming
