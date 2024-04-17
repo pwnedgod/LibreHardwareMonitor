@@ -359,8 +359,15 @@ internal class IT87XX : ISuperIO
             r.Append(" ");
             r.Append(ReadGpio(i)?.ToString("X2", CultureInfo.InvariantCulture));
         }
-
         r.AppendLine();
+
+        if (_gigabyteController != null)
+        {
+            r.AppendLine("Gigabyte EC");
+            r.AppendLine(_gigabyteController.GetReport());
+            r.AppendLine();
+        }
+
         r.AppendLine();
         Mutexes.ReleaseIsaBus();
         return r.ToString();

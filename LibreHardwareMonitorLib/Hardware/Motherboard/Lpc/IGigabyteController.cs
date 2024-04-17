@@ -11,4 +11,6 @@ internal interface IGigabyteController
     bool Enable(bool enabled);
 
     void Restore();
+
+    string GetReport();
 }

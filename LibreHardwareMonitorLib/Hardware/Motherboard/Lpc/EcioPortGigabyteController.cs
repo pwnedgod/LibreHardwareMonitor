@@ -5,6 +5,8 @@
 // All Rights Reserved.
 
 using System;
+using System.Globalization;
+using System.Text;
 using System.Threading;
 
 namespace LibreHardwareMonitor.Hardware.Motherboard.Lpc;
@@ -65,5 +67,18 @@ internal class EcioPortGigabyteController : IGigabyteController
     {
         if (_initialState.HasValue)
             Enable(_initialState.Value);
+    }
+
+    public string GetReport()
+    {
+        StringBuilder r = new();
+
+        r.Append("Using ECIO port (0x");
+        r.Append(_port.RegisterPort.ToString("X", CultureInfo.InvariantCulture));
+        r.Append(", 0x");
+        r.Append(_port.ValuePort.ToString("X", CultureInfo.InvariantCulture));
+        r.AppendLine(")");
+
+        return r.ToString();
     }
 }

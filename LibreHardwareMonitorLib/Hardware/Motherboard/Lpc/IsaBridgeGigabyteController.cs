@@ -5,7 +5,9 @@
 // All Rights Reserved.
 
 using System;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using LibreHardwareMonitor.Hardware.Cpu;
 
@@ -138,5 +140,18 @@ internal class IsaBridgeGigabyteController : IGigabyteController
     {
         if (_initialState.HasValue)
             Enable(_initialState.Value);
+    }
+
+    public string GetReport()
+    {
+        StringBuilder r = new();
+
+        r.AppendLine("Using ISA bridge");
+        r.Append("Vendor: ");
+        r.AppendLine(_vendor.ToString());
+        r.Append("Controller base address: 0x");
+        r.AppendLine(_controllerBaseAddress.ToString("X", CultureInfo.InvariantCulture));
+
+        return r.ToString();
     }
 }
