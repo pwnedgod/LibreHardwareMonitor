@@ -12,5 +12,13 @@ internal interface IGigabyteController
 
     void Restore();
 
+    void Update();
+
+    float?[] ExtraControls { get; }
+
+    float?[] ExtraFans { get; }
+
+    float?[] ExtraTemperatures { get; }
+
     string GetReport();
 }

@@ -32,6 +32,12 @@ internal class IT87XX : ISuperIO
     private readonly bool[] _restoreDefaultFanPwmControlRequired = new bool[MaxFanHeaders];
     private readonly byte _version;
     private readonly float _voltageGain;
+    private readonly int _mainTemperatureCount;
+    private readonly int _mainFanCount;
+    private readonly int _mainControlCount;
+    private readonly int _extraTemperatureCount;
+    private readonly int _extraFanCount;
+    private readonly int _extraControlCount;
     private IGigabyteController _gigabyteController;
 
     private bool SupportsMultipleBanks => _bankCount > 1;
@@ -98,94 +104,113 @@ internal class IT87XX : ISuperIO
             Chip.IT8655E or
             Chip.IT8631E;
 
+        if (_gigabyteController != null)
+        {
+            _extraControlCount = _gigabyteController.ExtraControls.Length;
+            _extraFanCount = _gigabyteController.ExtraFans.Length;
+            _extraTemperatureCount = _gigabyteController.ExtraTemperatures.Length;
+        }
+
+        int voltageCount;
+        int temperatureCount;
+        int fanCount;
+        int controlCount;
         switch (chip)
         {
             case Chip.IT8613E:
-                Voltages = new float?[10];
-                Temperatures = new float?[4];
-                Fans = new float?[5];
-                Controls = new float?[4];
+                voltageCount = 10;
+                temperatureCount = 4;
+                fanCount = 5;
+                controlCount = 4;
                 break;
 
             case Chip.IT8625E:
-                Voltages = new float?[7];
-                Temperatures = new float?[3];
-                Fans = new float?[6];
-                Controls = new float?[6];
+                voltageCount = 7;
+                temperatureCount = 3;
+                fanCount = 6;
+                controlCount = 6;
                 break;
             case Chip.IT8628E:
-                Voltages = new float?[10];
-                Temperatures = new float?[6];
-                Fans = new float?[6];
-                Controls = new float?[6];
+                voltageCount = 10;
+                temperatureCount = 6;
+                fanCount = 6;
+                controlCount = 6;
                 break;
 
             case Chip.IT8631E:
-                Voltages = new float?[9];
-                Temperatures = new float?[2];
-                Fans = new float?[2];
-                Controls = new float?[2];
+                voltageCount = 9;
+                temperatureCount = 2;
+                fanCount = 2;
+                controlCount = 2;
                 break;
 
             case Chip.IT8665E:
             case Chip.IT8686E:
-                Voltages = new float?[10];
-                Temperatures = new float?[6];
-                Fans = new float?[6];
-                Controls = new float?[5];
+                voltageCount = 10;
+                temperatureCount = 6;
+                fanCount = 6;
+                controlCount = 5;
                 break;
 
             case Chip.IT8688E:
-                Voltages = new float?[11];
-                Temperatures = new float?[6];
-                Fans = new float?[6];
-                Controls = new float?[5];
+                voltageCount = 11;
+                temperatureCount = 6;
+                fanCount = 6;
+                controlCount = 5;
                 break;
 
             case Chip.IT8689E:
-                Voltages = new float?[10];
-                Temperatures = new float?[6];
-                Fans = new float?[6];
-                Controls = new float?[6];
+                voltageCount = 10;
+                temperatureCount = 6;
+                fanCount = 6;
+                controlCount = 6;
                 break;
 
             case Chip.IT87952E:
-                Voltages = new float?[6];
-                Temperatures = new float?[3];
-                Fans = new float?[3];
-                Controls = new float?[3];
+                voltageCount = 6;
+                temperatureCount = 3;
+                fanCount = 3;
+                controlCount = 3;
                 break;
 
             case Chip.IT8655E:
-                Voltages = new float?[9];
-                Temperatures = new float?[6];
-                Fans = new float?[3];
-                Controls = new float?[3];
+                voltageCount = 9;
+                temperatureCount = 6;
+                fanCount = 3;
+                controlCount = 3;
                 break;
 
             case Chip.IT8792E:
-                Voltages = new float?[9];
-                Temperatures = new float?[3];
-                Fans = new float?[3];
-                Controls = new float?[3];
+                voltageCount = 9;
+                temperatureCount = 3;
+                fanCount = 3;
+                controlCount = 3;
                 break;
 
             case Chip.IT8705F:
-                Voltages = new float?[9];
-                Temperatures = new float?[3];
-                Fans = new float?[3];
-                Controls = new float?[3];
+                voltageCount = 9;
+                temperatureCount = 3;
+                fanCount = 3;
+                controlCount = 3;
                 break;
 
             default:
-                Voltages = new float?[9];
-                Temperatures = new float?[3];
-                Fans = new float?[5];
-                Controls = new float?[3];
+                voltageCount = 9;
+                temperatureCount = 3;
+                fanCount = 5;
+                controlCount = 3;
                 break;
         }
+        Voltages = new float?[voltageCount];
+        Temperatures = new float?[temperatureCount + _extraTemperatureCount];
+        Fans = new float?[fanCount + _extraFanCount];
+        Controls = new float?[controlCount + _extraControlCount];
 
-        _fansDisabled = new bool[Fans.Length];
+        _mainTemperatureCount = temperatureCount;
+        _mainFanCount = fanCount;
+        _mainControlCount = controlCount;
+
+        _fansDisabled = new bool[fanCount];
 
         // Voltage gain varies by model.
         // Conflicting reports on IT8792E: either 0.0109 in linux drivers or 0.011 comparing with Gigabyte board & SIV SW.
@@ -208,13 +233,13 @@ internal class IT87XX : ISuperIO
             if (!valid)
                 return;
 
-            if (Fans.Length >= 5)
+            if (fanCount >= 5)
             {
                 _fansDisabled[3] = (modes & (1 << 4)) == 0;
                 _fansDisabled[4] = (modes & (1 << 5)) == 0;
             }
 
-            if (Fans.Length >= 6)
+            if (fanCount >= 6)
                 _fansDisabled[5] = (modes & (1 << 2)) == 0;
         }
 
@@ -257,6 +282,10 @@ internal class IT87XX : ISuperIO
     {
         if (index < 0 || index >= Controls.Length)
             throw new ArgumentOutOfRangeException(nameof(index));
+
+        // Disable control for extras.
+        if (index >= _mainControlCount)
+            return;
 
         if (!Mutexes.WaitIsaBus(10))
             return;
@@ -414,7 +443,7 @@ internal class IT87XX : ISuperIO
                 Voltages[i] = null;
         }
 
-        for (int i = 0; i < Temperatures.Length; i++)
+        for (int i = 0; i < _mainTemperatureCount; i++)
         {
             sbyte value = (sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + i), out bool valid);
             if (!valid)
@@ -428,7 +457,7 @@ internal class IT87XX : ISuperIO
 
         if (_has16BitFanCounter)
         {
-            for (int i = 0; i < Fans.Length; i++)
+            for (int i = 0; i < _mainFanCount; i++)
             {
                 if (_fansDisabled[i])
                     continue;
@@ -449,7 +478,7 @@ internal class IT87XX : ISuperIO
         }
         else
         {
-            for (int i = 0; i < Fans.Length; i++)
+            for (int i = 0; i < _mainFanCount; i++)
             {
                 int value = ReadByte(FAN_TACHOMETER_REG[i], out bool valid);
                 if (!valid)
@@ -472,7 +501,7 @@ internal class IT87XX : ISuperIO
             }
         }
 
-        for (int i = 0; i < Controls.Length; i++)
+        for (int i = 0; i < _mainControlCount; i++)
         {
             byte value = ReadByte(FAN_PWM_CTRL_REG[i], out bool valid);
             if (!valid)
@@ -496,6 +525,26 @@ internal class IT87XX : ISuperIO
                 {
                     Controls[i] = (float)Math.Round((value & 0x7F) * 100.0f / 0x7F);
                 }
+            }
+        }
+
+        if (_gigabyteController != null)
+        {
+            _gigabyteController.Update();
+
+            for (int i = 0; i < _extraTemperatureCount; i++)
+            {
+                Temperatures[_mainTemperatureCount + i] = _gigabyteController.ExtraTemperatures[i];
+            }
+
+            for (int i = 0; i < _extraFanCount; i++)
+            {
+                Fans[_mainFanCount + i] = _gigabyteController.ExtraFans[i];
+            }
+
+            for (int i = 0; i < _extraControlCount; i++)
+            {
+                Controls[_mainControlCount + i] = _gigabyteController.ExtraControls[i];
             }
         }
 

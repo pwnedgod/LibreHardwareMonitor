@@ -60,7 +60,7 @@ internal class IsaBridgeGigabyteController : IGigabyteController
         if (!Mutexes.WaitPciBus(10))
             return false;
 
-        // see D14F3x https://www.amd.com/system/files/TechDocs/55072_AMD_Family_15h_Models_70h-7Fh_BKDG.pdf 
+        // see D14F3x https://www.amd.com/system/files/TechDocs/55072_AMD_Family_15h_Models_70h-7Fh_BKDG.pdf
         uint amdIsaBridgeAddress = Ring0.GetPciAddress(0x0, 0x14, 0x3);
 
         const uint ioOrMemoryPortDecodeEnableRegister = 0x48;
@@ -141,6 +141,16 @@ internal class IsaBridgeGigabyteController : IGigabyteController
         if (_initialState.HasValue)
             Enable(_initialState.Value);
     }
+
+    public void Update()
+    {
+    }
+
+    public float?[] ExtraControls { get; } = Array.Empty<float?>();
+
+    public float?[] ExtraFans { get; } = Array.Empty<float?>();
+
+    public float?[] ExtraTemperatures { get; } = Array.Empty<float?>();
 
     public string GetReport()
     {

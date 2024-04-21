@@ -17,8 +17,15 @@ internal class EcioPortGigabyteController : IGigabyteController
     private const ushort ControllerEnableRegister = 0x47;
     private const ushort ControllerFanControlArea = 0x900;
 
+    private const ushort ExtraControllerVersionOffset = 0x00;
+    private const ushort ExtraControllerFanControlArea = 0xC00;
+
     private const ushort EcioRegisterPort = 0x3F4;
     private const ushort EcioValuePort = 0x3F0;
+
+    private readonly ushort[] TemperatureOffsets = { 0x2, 0x3 };
+    private readonly ushort[] FanOffsets = { 0xA, 0xC };
+    private readonly ushort[] ControlOffsets = { 0x8, 0x9 };
 
     private readonly IT879xEcioPort _port;
 
@@ -27,6 +34,14 @@ internal class EcioPortGigabyteController : IGigabyteController
     private EcioPortGigabyteController(IT879xEcioPort port)
     {
         _port = port;
+
+        // Check extras by querying its version.
+        if (port.ReadByte(ExtraControllerFanControlArea + ExtraControllerVersionOffset, out byte majorVersion) && majorVersion == 1)
+        {
+            ExtraControls = new float?[ControlOffsets.Length];
+            ExtraFans = new float?[FanOffsets.Length];
+            ExtraTemperatures = new float?[TemperatureOffsets.Length];
+        }
     }
 
     public static EcioPortGigabyteController TryCreate()
@@ -34,7 +49,7 @@ internal class EcioPortGigabyteController : IGigabyteController
         IT879xEcioPort port = new(EcioRegisterPort, EcioValuePort);
 
         // Check compatibility by querying its version.
-        if (!port.Read(ControllerFanControlArea + ControllerVersionOffset, out byte majorVersion) || majorVersion != 1)
+        if (!port.ReadByte(ControllerFanControlArea + ControllerVersionOffset, out byte majorVersion) || majorVersion != 1)
             return null;
 
         return new EcioPortGigabyteController(port);
@@ -44,16 +59,16 @@ internal class EcioPortGigabyteController : IGigabyteController
     {
         ushort offset = ControllerFanControlArea + ControllerEnableRegister;
 
-        if (!_port.Read(offset, out byte bCurrent))
+        if (!_port.ReadByte(offset, out byte bCurrent))
             return false;
 
         bool current = Convert.ToBoolean(bCurrent);
 
         _initialState ??= current;
-        
+
         if (current != enabled)
         {
-            if (!_port.Write(offset, (byte)(enabled ? 1 : 0)))
+            if (!_port.WriteByte(offset, (byte)(enabled ? 1 : 0)))
                 return false;
 
             // Allow the system to catch up.
@@ -68,6 +83,39 @@ internal class EcioPortGigabyteController : IGigabyteController
         if (_initialState.HasValue)
             Enable(_initialState.Value);
     }
+
+    public void Update()
+    {
+        for (int i = 0; i < TemperatureOffsets.Length; i++)
+        {
+            ushort offset = (ushort)(ExtraControllerFanControlArea + TemperatureOffsets[i]);
+            if (!_port.ReadByte(offset, out byte temperature))
+                continue;
+            ExtraTemperatures[i] = temperature;
+        }
+
+        for (int i = 0; i < FanOffsets.Length; i++)
+        {
+            ushort offset = (ushort)(ExtraControllerFanControlArea + FanOffsets[i]);
+            if (!_port.ReadWord(offset, out ushort fan))
+                continue;
+            ExtraFans[i] = fan;
+        }
+
+        for (int i = 0; i < ControlOffsets.Length; i++)
+        {
+            ushort offset = (ushort)(ExtraControllerFanControlArea + ControlOffsets[i]);
+            if (!_port.ReadByte(offset, out byte control))
+                continue;
+            ExtraControls[i] = (float)Math.Round(control * 100.0f / 0xFF);
+        }
+    }
+
+    public float?[] ExtraControls { get; } = Array.Empty<float?>();
+
+    public float?[] ExtraFans { get; } = Array.Empty<float?>();
+
+    public float?[] ExtraTemperatures { get; } = Array.Empty<float?>();
 
     public string GetReport()
     {

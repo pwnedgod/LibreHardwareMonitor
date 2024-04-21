@@ -21,9 +21,9 @@ internal class IT879xEcioPort
 
     public ushort ValuePort { get; }
 
-    public bool Read(ushort offset, out byte value)
+    public bool ReadByte(ushort offset, out byte value)
     {
-        value = 0;
+        value = 0xFF;
 
         if (!WriteToRegister(0xB0) ||
             !WriteToValue((byte)((offset >> 8) & 0xFF)) ||
@@ -33,7 +33,7 @@ internal class IT879xEcioPort
         return ReadFromValue(out value);
     }
 
-    public bool Write(ushort offset, byte value)
+    public bool WriteByte(ushort offset, byte value)
     {
         if (!WriteToRegister(0xB1) ||
             !WriteToValue((byte)((offset >> 8) & 0xFF)) ||
@@ -41,6 +41,24 @@ internal class IT879xEcioPort
             return false;
 
         return WriteToValue(value);
+    }
+
+    public bool ReadWord(ushort offset, out ushort value)
+    {
+        value = 0xFFFF;
+
+        if (!ReadByte(offset, out byte b1) ||
+            !ReadByte((ushort)(offset + 1), out byte b2))
+            return false;
+
+        value = (ushort)(b1 | (b2 << 8));
+        return true;
+    }
+
+    public bool WriteWord(ushort offset, ushort value)
+    {
+        return WriteByte(offset, (byte)(value & 0xFF)) &&
+            WriteByte((ushort)(offset + 1), (byte)((value >> 8) & 0xFF));
     }
 
     private bool WriteToRegister(byte value)
@@ -61,7 +79,7 @@ internal class IT879xEcioPort
 
     private bool ReadFromValue(out byte value)
     {
-        value = 0;
+        value = 0xFF;
         if (!WaitOBF())
             return false;
         value = Ring0.ReadIoPort(ValuePort);
@@ -75,7 +93,7 @@ internal class IT879xEcioPort
         {
             while ((Ring0.ReadIoPort(RegisterPort) & 2) != 0)
             {
-                if (stopwatch.ElapsedMilliseconds > WAIT_TIMEOUT)
+                if (stopwatch.ElapsedMilliseconds > WaitTimeout)
                     return false;
 
                 Thread.Sleep(1);
@@ -95,7 +113,7 @@ internal class IT879xEcioPort
         {
             while ((Ring0.ReadIoPort(RegisterPort) & 1) == 0)
             {
-                if (stopwatch.ElapsedMilliseconds > WAIT_TIMEOUT)
+                if (stopwatch.ElapsedMilliseconds > WaitTimeout)
                     return false;
 
                 Thread.Sleep(1);
@@ -108,5 +126,5 @@ internal class IT879xEcioPort
         }
     }
 
-    private const long WAIT_TIMEOUT = 1000L;
+    private const long WaitTimeout = 1000L;
 }
