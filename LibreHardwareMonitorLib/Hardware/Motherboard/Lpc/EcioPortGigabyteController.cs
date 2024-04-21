@@ -72,7 +72,7 @@ internal class EcioPortGigabyteController : IGigabyteController
                 return false;
 
             // Allow the system to catch up.
-            Thread.Sleep(250);
+            Thread.Sleep(400);
         }
 
         return true;

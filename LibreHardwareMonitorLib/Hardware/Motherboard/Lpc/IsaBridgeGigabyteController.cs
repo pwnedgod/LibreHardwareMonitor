@@ -126,7 +126,7 @@ internal class IsaBridgeGigabyteController : IGigabyteController
         {
             Marshal.WriteByte(mapped, ControllerEnableRegister, Convert.ToByte(enabled));
             // Give it some time to see the change
-            Thread.Sleep(250);
+            Thread.Sleep(400);
         }
 
         InpOut.UnmapMemory(handle, mapped);
