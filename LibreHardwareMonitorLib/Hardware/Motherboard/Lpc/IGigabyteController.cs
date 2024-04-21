@@ -14,6 +14,10 @@ internal interface IGigabyteController
 
     void Update();
 
+    byte GetControl(int index);
+
+    void SetControl(int index, byte value);
+
     float?[] ExtraControls { get; }
 
     float?[] ExtraFans { get; }

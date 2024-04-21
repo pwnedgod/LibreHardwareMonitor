@@ -38,7 +38,7 @@ internal class IT87XX : ISuperIO
     private readonly int _extraTemperatureCount;
     private readonly int _extraFanCount;
     private readonly int _extraControlCount;
-    private IGigabyteController _gigabyteController;
+    private readonly IGigabyteController _gigabyteController;
 
     private bool SupportsMultipleBanks => _bankCount > 1;
 
@@ -283,10 +283,6 @@ internal class IT87XX : ISuperIO
         if (index < 0 || index >= Controls.Length)
             throw new ArgumentOutOfRangeException(nameof(index));
 
-        // Disable control for extras.
-        if (index >= _mainControlCount)
-            return;
-
         if (!Mutexes.WaitIsaBus(10))
             return;
 
@@ -295,27 +291,33 @@ internal class IT87XX : ISuperIO
             SaveDefaultFanPwmControl(index);
 
             // Disable the controller when setting values to prevent it from overriding them
-            if (_gigabyteController != null)
-                _gigabyteController.Enable(false);
+            _gigabyteController?.Enable(false);
 
-            if (index < 3 && !_initialFanOutputModeEnabled[index])
-                WriteByte(FAN_MAIN_CTRL_REG, (byte)(ReadByte(FAN_MAIN_CTRL_REG, out _) | (1 << index)));
-
-            if (_hasExtReg)
+            if (index < _mainControlCount)
             {
-                if (Chip == Chip.IT8689E)
+                if (index < 3 && !_initialFanOutputModeEnabled[index])
+                    WriteByte(FAN_MAIN_CTRL_REG, (byte)(ReadByte(FAN_MAIN_CTRL_REG, out _) | (1 << index)));
+
+                if (_hasExtReg)
                 {
-                    WriteByte(FAN_PWM_CTRL_REG[index], 0x7F);
+                    if (Chip == Chip.IT8689E)
+                    {
+                        WriteByte(FAN_PWM_CTRL_REG[index], 0x7F);
+                    }
+                    else
+                    {
+                        WriteByte(FAN_PWM_CTRL_REG[index], (byte)(_initialFanPwmControl[index] & 0x7F));
+                    }
+                    WriteByte(FAN_PWM_CTRL_EXT_REG[index], value.Value);
                 }
                 else
                 {
-                    WriteByte(FAN_PWM_CTRL_REG[index], (byte)(_initialFanPwmControl[index] & 0x7F));
+                    WriteByte(FAN_PWM_CTRL_REG[index], (byte)(value.Value >> 1));
                 }
-                WriteByte(FAN_PWM_CTRL_EXT_REG[index], value.Value);
             }
             else
             {
-                WriteByte(FAN_PWM_CTRL_REG[index], (byte)(value.Value >> 1));
+                _gigabyteController?.SetControl(index - _mainControlCount, value.Value);
             }
         }
         else
@@ -573,13 +575,21 @@ internal class IT87XX : ISuperIO
     {
         if (!_restoreDefaultFanPwmControlRequired[index])
         {
-            _initialFanPwmControl[index] = ReadByte(FAN_PWM_CTRL_REG[index], out bool _);
+            if (index < _mainControlCount)
+            {
+                _initialFanPwmControl[index] = ReadByte(FAN_PWM_CTRL_REG[index], out _);
 
-            if (index < 3)
-                _initialFanOutputModeEnabled[index] = ReadByte(FAN_MAIN_CTRL_REG, out bool _) != 0; // Save default control reg value.
+                if (index < 3)
+                    _initialFanOutputModeEnabled[index] = ReadByte(FAN_MAIN_CTRL_REG, out _) != 0; // Save default control reg value.
 
-            if (_hasExtReg)
-                _initialFanPwmControlExt[index] = ReadByte(FAN_PWM_CTRL_EXT_REG[index], out _);
+                if (_hasExtReg)
+                    _initialFanPwmControlExt[index] = ReadByte(FAN_PWM_CTRL_EXT_REG[index], out _);
+            }
+            else
+            {
+                if (_gigabyteController != null)
+                    _initialFanPwmControl[index] = _gigabyteController.GetControl(index - _mainControlCount);
+            }
         }
 
         _restoreDefaultFanPwmControlRequired[index] = true;
@@ -589,19 +599,26 @@ internal class IT87XX : ISuperIO
     {
         if (_restoreDefaultFanPwmControlRequired[index])
         {
-            WriteByte(FAN_PWM_CTRL_REG[index], _initialFanPwmControl[index]);
-
-            if (index < 3)
+            if (index < _mainControlCount)
             {
-                byte value = ReadByte(FAN_MAIN_CTRL_REG, out _);
+                WriteByte(FAN_PWM_CTRL_REG[index], _initialFanPwmControl[index]);
 
-                bool isEnabled = (value & (1 << index)) != 0;
-                if (isEnabled != _initialFanOutputModeEnabled[index])
-                    WriteByte(FAN_MAIN_CTRL_REG, (byte)(value ^ (1 << index)));
+                if (index < 3)
+                {
+                    byte value = ReadByte(FAN_MAIN_CTRL_REG, out _);
+
+                    bool isEnabled = (value & (1 << index)) != 0;
+                    if (isEnabled != _initialFanOutputModeEnabled[index])
+                        WriteByte(FAN_MAIN_CTRL_REG, (byte)(value ^ (1 << index)));
+                }
+
+                if (_hasExtReg)
+                    WriteByte(FAN_PWM_CTRL_EXT_REG[index], _initialFanPwmControlExt[index]);
             }
-
-            if (_hasExtReg)
-                WriteByte(FAN_PWM_CTRL_EXT_REG[index], _initialFanPwmControlExt[index]);
+            else
+            {
+                _gigabyteController?.SetControl(index - _mainControlCount, _initialFanPwmControl[index]);
+            }
 
             _restoreDefaultFanPwmControlRequired[index] = false;
 

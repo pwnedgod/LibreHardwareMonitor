@@ -146,6 +146,15 @@ internal class IsaBridgeGigabyteController : IGigabyteController
     {
     }
 
+    public byte GetControl(int index)
+    {
+        return 0;
+    }
+
+    public void SetControl(int index, byte value)
+    {
+    }
+
     public float?[] ExtraControls { get; } = Array.Empty<float?>();
 
     public float?[] ExtraFans { get; } = Array.Empty<float?>();

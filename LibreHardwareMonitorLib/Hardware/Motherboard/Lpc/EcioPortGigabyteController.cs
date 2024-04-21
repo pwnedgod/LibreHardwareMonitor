@@ -84,6 +84,27 @@ internal class EcioPortGigabyteController : IGigabyteController
             Enable(_initialState.Value);
     }
 
+    public byte GetControl(int index)
+    {
+        if (index < 0 || index >= ControlOffsets.Length)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        ushort offset = (ushort)(ExtraControllerFanControlArea + ControlOffsets[index]);
+        if (!_port.ReadByte(offset, out byte value))
+            return 0xFF;
+
+        return value;
+    }
+
+    public void SetControl(int index, byte value)
+    {
+        if (index < 0 || index >= ControlOffsets.Length)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        ushort offset = (ushort)(ExtraControllerFanControlArea + ControlOffsets[index]);
+        _port.WriteByte(offset, value);
+    }
+
     public void Update()
     {
         for (int i = 0; i < TemperatureOffsets.Length; i++)
