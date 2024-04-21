@@ -95,8 +95,6 @@ internal class IT879xEcioPort
             {
                 if (stopwatch.ElapsedMilliseconds > WaitTimeout)
                     return false;
-
-                Thread.Sleep(1);
             }
             return true;
         }
@@ -115,8 +113,6 @@ internal class IT879xEcioPort
             {
                 if (stopwatch.ElapsedMilliseconds > WaitTimeout)
                     return false;
-
-                Thread.Sleep(1);
             }
             return true;
         }
